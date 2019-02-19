@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: dlogo
-          image: dtr.west.us.se.dckr.org/demo/dlogo:2019.01.29.193122-jc
+          image: jcolandr/dlogo:1.0
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -47,7 +47,7 @@ metadata:
   name: dlogo-jcolandr-ingress
 spec:
   rules:
-  - host: dlogo.kube.west.us.se.dckr.org
+  - host: dlogo.apps.jcolandr.dtcntr.net
     http:
       paths:
       - path: /

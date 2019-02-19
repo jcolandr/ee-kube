@@ -184,6 +184,65 @@ subjects:
     namespace: ingress-nginx
 
 ---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: default-http-backend
+  labels:
+    app: default-http-backend
+  namespace: ingress-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: default-http-backend
+  template:
+    metadata:
+      labels:
+        app: default-http-backend
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: docker/default
+    spec:
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        role: ingress
+      containers:
+      - name: default-http-backend
+        # Any image is permissible as long as:
+        # 1. It serves a 404 page at /
+        # 2. It serves 200 on a /healthz endpoint
+        image: gcr.io/google_containers/defaultbackend:1.4
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          timeoutSeconds: 5
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 10m
+            memory: 20Mi
+          requests:
+            cpu: 10m
+            memory: 20Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: default-http-backend
+  namespace: ingress-nginx
+  labels:
+    app: default-http-backend
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: default-http-backend
+---
 
 apiVersion: apps/v1
 kind: Deployment
@@ -209,6 +268,8 @@ spec:
         prometheus.io/scrape: "true"
     spec:
       serviceAccountName: nginx-ingress-serviceaccount
+      nodeSelector:
+        role: ingress
       containers:
         - name: nginx-ingress-controller
           image: quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.22.0
@@ -220,6 +281,8 @@ spec:
             - --udp-services-configmap=$(POD_NAMESPACE)/udp-services
             - --publish-service=$(POD_NAMESPACE)/ingress-nginx
             - --annotations-prefix=nginx.ingress.kubernetes.io
+            #- --sort-backends=true
+            - --enable-ssl-passthrough
           securityContext:
             allowPrivilegeEscalation: true
             capabilities:
@@ -273,13 +336,16 @@ metadata:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/part-of: ingress-nginx
 spec:
+  #externalTrafficPolicy: Cluster
   type: NodePort
   ports:
     - name: http
+      nodePort: 35080
       port: 80
       targetPort: 80
       protocol: TCP
     - name: https
+      nodePort: 35443
       port: 443
       targetPort: 443
       protocol: TCP
